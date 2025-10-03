@@ -26,16 +26,7 @@ func psproxy(cmd *cobra.Command, _ []string) error {
 
 	engine := gin.Default()
 	// Config update endpoint (could add auth)
-	engine.PATCH("/proxy/config", func(c *gin.Context) {
-		if err := c.BindJSON(&config); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid config format"})
-			return
-		}
-		if err := config.Apply(); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-	})
+	engine.PATCH("/proxy/config", handleConfigPatch)
 	// Config read endpoint
 	engine.GET("/proxy/config", func(c *gin.Context) {
 		c.JSON(http.StatusOK, config)
@@ -85,6 +76,26 @@ func psproxy(cmd *cobra.Command, _ []string) error {
 	default:
 	}
 	return nil
+}
+
+func handleConfigPatch(c *gin.Context) {
+	var newConfig ShadowProxyConfig
+	if config != nil {
+		newConfig = *config
+	}
+
+	if err := c.ShouldBindJSON(&newConfig); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid config format"})
+		return
+	}
+
+	if err := newConfig.Apply(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	config = &newConfig
+	c.Status(http.StatusOK)
 }
 
 // handlePrestoStatement handles POST /v1/statement requests.
