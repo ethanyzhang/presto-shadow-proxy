@@ -126,8 +126,6 @@ func handlePrestoStatement(c *gin.Context) {
 	qr, resp, err := prodClient.Query(c.Request.Context(), query, copyHeader)
 	if err != nil {
 		log.Error().Err(err).Msg("production query failed")
-		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
-		return
 	}
 
 	// Copy all response headers from Presto to the client
@@ -143,7 +141,6 @@ func handlePrestoStatement(c *gin.Context) {
 
 	// Shadow execution (optional)
 	if config.ShadowAddress != "" {
-		prodQueryID := qr.Id
 		slug := ""
 		if qr.NextUri != nil {
 			if u, err := url.Parse(*qr.NextUri); err != nil {
@@ -152,7 +149,7 @@ func handlePrestoStatement(c *gin.Context) {
 				slug = u.Query().Get("slug")
 			}
 		}
-		go func() {
+		go func(prodQueryID string) {
 			ctx := context.Background()
 			shadowID := shadowQueryIDPrefix + prodQueryID
 			start := time.Now()
@@ -170,7 +167,7 @@ func handlePrestoStatement(c *gin.Context) {
 			}
 			log.Debug().Str("shadow_query_id", shadowID).Str("prod_query_id", prodQueryID).
 				Dur("latency", time.Since(start)).Msg("shadow query completed")
-		}()
+		}(qr.Id)
 	}
 }
 
@@ -189,7 +186,6 @@ func newPrestoProxy(raw string) (*httputil.ReverseProxy, error) {
 	p.Director = func(r *http.Request) {
 		orig(r)
 		r.Host = u.Host
-		r.Header.Add("X-Forwarded-For", r.RemoteAddr)
 	}
 	p.ErrorHandler = func(rw http.ResponseWriter, r *http.Request, e error) {
 		http.Error(rw, "upstream error: "+e.Error(), http.StatusBadGateway)

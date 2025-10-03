@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"io"
 	"os/signal"
 	"syscall"
 
@@ -35,8 +34,6 @@ func init() {
 
 func main() {
 	gin.SetMode(gin.ReleaseMode)
-	// Redirect Gin's default output to /dev/null to suppress logging
-	gin.DefaultWriter = io.Discard
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
