@@ -15,6 +15,7 @@ import (
 
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -31,6 +32,17 @@ func psproxy(cmd *cobra.Command, _ []string) error {
 	engine.GET("/proxy/config", func(c *gin.Context) {
 		c.JSON(http.StatusOK, config)
 	})
+	engine.GET("/log/:level",
+		func(c *gin.Context) {
+			levelStr := c.Param("level")
+			if level, err := zerolog.ParseLevel(levelStr); err != nil {
+				c.String(http.StatusInternalServerError, err.Error())
+				return
+			} else if zerolog.GlobalLevel() != level {
+				zerolog.SetGlobalLevel(level)
+				c.JSON(http.StatusOK, gin.H{"level": levelStr})
+			}
+		})
 	// Custom handling for POST /v1/statement (not proxied directly)
 	engine.POST("/v1/statement", gzip.Gzip(gzip.DefaultCompression), handlePrestoStatement)
 	// Proxy everything else using NoRoute to avoid wildcard conflicts with explicit routes
@@ -133,18 +145,27 @@ func handlePrestoStatement(c *gin.Context) {
 			}
 		}
 	}
+	log.Debug().
+		Interface("headers", c.Request.Header).
+		Msg("incoming request headers")
 
 	qr, resp, err := prodClient.Query(c.Request.Context(), query, copyHeader)
 	if err != nil {
 		log.Error().Err(err).Msg("production query failed")
+		if resp == nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 	}
-
 	// Copy all response headers from Presto to the client
 	for k, v := range resp.Header {
 		for _, vv := range v {
 			c.Writer.Header().Add(k, vv)
 		}
 	}
+	log.Debug().
+		Interface("headers", resp.Header).
+		Msg("response headers")
 	c.Status(resp.StatusCode)
 	if err = json.NewEncoder(c.Writer).Encode(qr); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encode response"})

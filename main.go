@@ -6,6 +6,7 @@ import (
 	"syscall"
 
 	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
 )
@@ -34,6 +35,7 @@ func init() {
 
 func main() {
 	gin.SetMode(gin.ReleaseMode)
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
