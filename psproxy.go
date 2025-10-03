@@ -145,10 +145,12 @@ func handlePrestoStatement(c *gin.Context) {
 	if config.ShadowAddress != "" {
 		prodQueryID := qr.Id
 		slug := ""
-		if u, err := url.Parse(*qr.NextUri); err != nil {
-			log.Error().Err(err).Msg("failed to parse production query slug")
-		} else {
-			slug = u.Query().Get("slug")
+		if qr.NextUri != nil {
+			if u, err := url.Parse(*qr.NextUri); err != nil {
+				log.Error().Err(err).Msg("failed to parse production query slug")
+			} else {
+				slug = u.Query().Get("slug")
+			}
 		}
 		go func() {
 			ctx := context.Background()
